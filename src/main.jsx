@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import backgroundImage from './assets/jai-background.png';
@@ -15,24 +15,32 @@ const workItems = [
   {
     title: 'Machine Learning',
     index: '01',
+    art: 'ml',
+    description: 'Classical ML, model building, evaluation, and real-world datasets.',
     concepts: ['Regression', 'Classification', 'Ensemble Learning', 'Feature Engineering', 'Preprocessing', 'Model Evaluation & Tuning', 'NLP', 'Embeddings'],
     tools: ['Scikit-learn', 'Pandas', 'NumPy', 'Matplotlib', 'Seaborn', 'TensorFlow', 'Keras'],
   },
   {
     title: 'Deep Learning',
     index: '02',
+    art: 'deep',
+    description: 'Neural networks, architectures, training techniques, and beyond.',
     concepts: ['Neural Networks', 'Forward & Backpropagation', 'Activation Functions', 'Loss Functions', 'Optimizers', 'Regularization', 'Dropout', 'RNNs', 'LSTMs', 'Embeddings', 'Attention', 'QKV', 'Multi-Head Attention', 'Positional Encoding', 'Transformers', 'LoRA & Adapters'],
     tools: ['TensorFlow', 'Keras', 'NumPy'],
   },
   {
-    title: 'Systems',
+    title: 'Computer Vision',
     index: '03',
-    concepts: ['API Development', 'Model Serving', 'Inference Pipelines', 'Streaming', 'Containerization', 'Local Model Deployment', 'Cloud Tunneling'],
-    tools: ['Flask', 'Docker', 'Ollama', 'NVIDIA NIM'],
+    art: 'vision',
+    description: 'Images, visual understanding, and real-world applications.',
+    concepts: ['Image Representation', 'Convolutional Networks', 'Transfer Learning', 'Object Detection', 'Image Classification', 'Visual Embeddings'],
+    tools: ['Python', 'OpenCV', 'TensorFlow', 'Keras'],
   },
   {
-    title: 'LLMs',
+    title: 'LLMs & NLP',
     index: '04',
+    art: 'llm',
+    description: 'Language models, RAG, embeddings, and useful AI systems.',
     concepts: ['Transformers', 'Attention', 'QKV', 'Multi-Head Attention', 'Positional Encoding', 'Tokenization', 'Embeddings', 'Instruction Tuning', 'Fine-Tuning', 'LoRA', 'Adapters', 'RAG', 'Prompt Engineering', 'Tool Calling', 'Structured Outputs', 'Streaming & Inference'],
     tools: [],
   },
@@ -59,6 +67,10 @@ function ArrowIcon({ diagonal = false }) {
   );
 }
 
+function GitHubIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true" className="github-icon"><path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.04c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.74.08-.74 1.2.09 1.84 1.23 1.84 1.23 1.07 1.84 2.8 1.31 3.48 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.23-3.22-.12-.3-.53-1.52.12-3.18 0 0 1-.32 3.3 1.23a11.4 11.4 0 0 1 6 0c2.29-1.55 3.29-1.23 3.29-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.6-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.57A12 12 0 0 0 12 .5Z" /></svg>;
+}
+
 function Reveal({ children, className = '', delay = 0, as: Tag = 'div' }) {
   return <Tag className={`scroll-reveal ${className}`} style={{ '--reveal-delay': `${delay}ms` }}>{children}</Tag>;
 }
@@ -67,31 +79,54 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
-  const [cursor, setCursor] = useState({ x: -100, y: -100 });
+  const cursorRef = useRef(null);
+  const cursorFrameRef = useRef(null);
+  const heroRef = useRef(null);
+  const [portraitFocus, setPortraitFocus] = useState(false);
   const [openWork, setOpenWork] = useState(null);
   const [openPython, setOpenPython] = useState(false);
 
   const sectionIds = useMemo(() => navItems.map((item) => item.href.slice(1)), []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    const onMove = (event) => setCursor({ x: event.clientX, y: event.clientY });
+    const onScroll = () => setScrolled((value) => {
+      const nextValue = window.scrollY > 20;
+      return value === nextValue ? value : nextValue;
+    });
+    const onMove = (event) => {
+      if (cursorFrameRef.current) cancelAnimationFrame(cursorFrameRef.current);
+      cursorFrameRef.current = requestAnimationFrame(() => {
+        if (cursorRef.current) cursorRef.current.style.transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0)`;
+        if (heroRef.current) {
+          const proximity = Math.max(0, 1 - Math.abs(event.clientX - window.innerWidth * 0.18) / (window.innerWidth * 0.56));
+          heroRef.current.style.setProperty('--portrait-scale', (1 + proximity * 0.045).toFixed(3));
+          heroRef.current.style.setProperty('--portrait-shift', `${(proximity * 3).toFixed(1)}px`);
+        }
+      });
+      setPortraitFocus((value) => {
+        const nextValue = event.clientX < window.innerWidth * 0.5;
+        return value === nextValue ? value : nextValue;
+      });
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('mousemove', onMove);
 
     const sections = sectionIds.map((id) => document.getElementById(id)).filter(Boolean);
+    const sectionVisibility = new Map();
     const observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (visible) setActiveSection(visible.target.id);
-    }, { rootMargin: '-30% 0px -55% 0px', threshold: [0.05, 0.2, 0.5] });
+      entries.forEach((entry) => sectionVisibility.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0));
+      const visible = [...sectionVisibility.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (visible && visible[1] > 0) setActiveSection(visible[0]);
+    }, { rootMargin: '-35% 0px -35% 0px', threshold: [0, 0.25, 0.5, 0.75, 1] });
     sections.forEach((section) => observer.observe(section));
 
     const revealObserver = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-          revealObserver.unobserve(entry.target);
+        if (entry.target.classList.contains('work-item')) {
+          if (entry.isIntersecting) entry.target.classList.add('is-visible');
+          return;
         }
+        entry.target.classList.toggle('is-visible', entry.isIntersecting);
       });
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
     document.querySelectorAll('.scroll-reveal').forEach((element) => revealObserver.observe(element));
@@ -99,16 +134,24 @@ function App() {
     return () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('mousemove', onMove);
+      if (cursorFrameRef.current) cancelAnimationFrame(cursorFrameRef.current);
       observer.disconnect();
       revealObserver.disconnect();
     };
   }, [sectionIds]);
 
   const closeMenu = () => setMenuOpen(false);
+  const toggleWork = (title, event) => {
+    const opening = openWork !== title;
+    const row = event.currentTarget.closest('.work-item');
+    setOpenWork(opening ? title : null);
+    if (opening && row) requestAnimationFrame(() => row.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  };
+  const activeIndex = Math.max(0, navItems.findIndex((item) => item.href.slice(1) === activeSection));
 
   return (
     <div className="site-shell">
-      <div className="custom-cursor" style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }} aria-hidden="true" />
+      <div ref={cursorRef} className="custom-cursor" aria-hidden="true" />
 
       <header className={`topbar ${scrolled ? 'is-scrolled' : ''}`}>
         <a className="brand-mark" href="#home" onClick={closeMenu} aria-label="Jai home">
@@ -124,59 +167,83 @@ function App() {
           ))}
         </nav>
 
+        <div className="section-progress" aria-label={`Current section: ${navItems[activeIndex].label}`}>
+          <span className="section-progress-label">{String(activeIndex + 1).padStart(2, '0')} / {navItems[activeIndex].label.toUpperCase()}</span>
+          <span className="section-progress-track"><i style={{ width: `${((activeIndex + 1) / navItems.length) * 100}%` }} /></span>
+        </div>
+
         <button className="menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>
           <span /><span />
         </button>
       </header>
 
       <main>
-        <section id="home" className="hero" style={{ '--hero-image': `url(${backgroundImage})` }}>
-          <div className="hero-image" aria-hidden="true" />
+        <section ref={heroRef} id="home" className={`hero ${portraitFocus ? 'portrait-focus' : ''}`} style={{ '--hero-image': `url(${backgroundImage})` }}>
+          <div className="hero-image-frame" aria-hidden="true"><div className="hero-image" /></div>
           <div className="hero-vignette" aria-hidden="true" />
+          <div className="hero-atmosphere" aria-hidden="true">
+            <span className="orbit orbit-one" />
+            <span className="orbit orbit-two" />
+            <span className="system-line line-one" />
+            <span className="system-line line-two" />
+            <span className="system-node node-one" />
+            <span className="system-node node-two" />
+            <span className="system-node node-three" />
+            <span className="system-node node-four" />
+          </div>
           <div className="grain" aria-hidden="true" />
 
-          <div className="hero-meta hero-meta-top"><span>01 / HOME</span><span>ML / 2026</span></div>
+          <div className="hero-meta hero-meta-top"><span>01 / HOME</span></div>
 
           <div className="hero-content">
             <Reveal className="eyebrow" delay={100}>MACHINE LEARNING / EXPERIMENTATION</Reveal>
-            <Reveal as="h1" className="hero-title word-reveal" delay={170}><span>Jai</span></Reveal>
-            <Reveal className="hero-role" delay={260}>ML Enthusiast</Reveal>
+            <Reveal as="h1" className="hero-title word-reveal" delay={170}><span>Jai</span><i className="hero-title-mark" aria-hidden="true" /></Reveal>
+            <Reveal className="hero-role" delay={260}><span className="role-accent">ML</span> Enthusiast</Reveal>
             <Reveal as="p" className="hero-description word-reveal" delay={340}>
               Learn things deeply, connect ideas across disciplines, and turn them into something better.
             </Reveal>
 
             <Reveal className="hero-actions" delay={430}>
               <a className="primary-link magnetic-link" href="#projects"><span>View My Work</span><ArrowIcon /></a>
-              <a className="secondary-link magnetic-link" href="https://github.com/JAI4213H" target="_blank" rel="noreferrer"><span>GitHub</span><ArrowIcon diagonal /></a>
+              <a className="secondary-link github-link magnetic-link" href="https://github.com/JAI4213H" target="_blank" rel="noreferrer"><span>GitHub</span><GitHubIcon /></a>
             </Reveal>
+            <Reveal className="hero-domains" delay={500}>LLMs <span>·</span> COMPUTER VISION <span>·</span> SYSTEMS <span>·</span> REAL-WORLD AI</Reveal>
           </div>
 
-          <div className="hero-side-note"><span>BUILD / LEARN / EXPERIMENT</span><span>JAI</span></div>
-
-          <Reveal className="hero-metrics" delay={520}>
-            <div className="metric"><strong>10</strong><span>Repositories</span></div>
-            <div className="metric"><strong>6+</strong><span>Months Learning</span></div>
-            <div className="metric"><strong>∞</strong><span>Ideas to Explore</span></div>
+          <Reveal className="hero-system-label" delay={620}>
+            <span className="system-label-dot" aria-hidden="true" />
+            <span>BUILD</span><span>LEARN</span><span>EXPERIMENT</span>
           </Reveal>
 
-          <a className="scroll-cue" href="#work" aria-label="Scroll to work"><span>SCROLL</span><span className="scroll-arrow">↓</span></a>
+          <Reveal className="hero-metrics" delay={520}>
+            <div className="metric"><strong>10+</strong><span>Projects</span></div>
+            <div className="metric"><strong>6+</strong><span>Months Learning</span></div>
+            <div className="metric"><strong>∞</strong><span>Experiments</span></div>
+          </Reveal>
+
+          <div className="hero-wave" aria-hidden="true" />
+          <a className="scroll-cue" href="#work" aria-label="Scroll to work"><span>SCROLL TO EXPLORE</span><span className="scroll-arrow">↓</span></a>
         </section>
 
         <section id="work" className="work-section section-shell">
           <Reveal className="section-kicker"><span>02</span><span>WORK / AREAS OF EXPLORATION</span></Reveal>
           <div className="section-heading-row">
             <Reveal as="h2" className="word-reveal" delay={70}>What I'm Working With</Reveal>
-            <Reveal as="p" delay={140}>Click a discipline to open the concepts and tools currently shaping my learning and building.</Reveal>
+            <Reveal as="p" delay={140}>Click a discipline to open the concepts and tools currently shaping my learning and building.<small className="section-annotation">EXPLORE <span>·</span> LEARN <span>·</span> BUILD <span>·</span> CONNECT</small></Reveal>
           </div>
 
+          <div className="work-visual" aria-hidden="true"><span className="work-visual-orbit" /><span className="work-visual-orbit orbit-small" /><i /><i /><i /><i /><b /></div>
+
           <div className="work-accordion">
-            {workItems.map((item) => {
+            {workItems.map((item, index) => {
               const isOpen = openWork === item.title;
               return (
-                <Reveal key={item.title} className={`work-item ${isOpen ? 'is-open' : ''}`} delay={80}>
-                  <button className="work-trigger" type="button" aria-expanded={isOpen} onClick={() => setOpenWork(isOpen ? null : item.title)}>
+                <div key={item.title} className={`scroll-reveal work-item ${isOpen ? 'is-open' : ''}`} style={{ '--reveal-delay': `${index * 100}ms` }}>
+                  <button className="work-trigger" type="button" aria-expanded={isOpen} onClick={(event) => toggleWork(item.title, event)}>
                     <span className="work-index">{item.index}</span>
+                    <span className={`discipline-art art-${item.art}`} aria-hidden="true"><i /><i /><i /></span>
                     <span className="work-title">{item.title}</span>
+                    <span className="work-description">{item.description}</span>
                     <span className="work-toggle" aria-hidden="true"><span /><span /></span>
                   </button>
                   <div className="work-panel" aria-hidden={!isOpen}>
@@ -188,7 +255,7 @@ function App() {
                       {item.tools.length > 0 && <div className="skill-group"><span className="skill-label">Tools</span><div className="skill-tags tool-tags">{item.tools.map((tool) => <span key={tool}>{tool}</span>)}</div></div>}
                     </div>
                   </div>
-                </Reveal>
+                </div>
               );
             })}
           </div>
@@ -229,6 +296,12 @@ function App() {
             ))}
           </div>
         </section>
+
+        <Reveal className="transition-bridge section-shell" delay={80}>
+          <span className="bridge-label">CURRENTLY EXPLORING</span>
+          <span className="bridge-line">LLMs <i>·</i> COMPUTER VISION <i>·</i> SYSTEMS <i>·</i> REAL-WORLD AI</span>
+          <span className="bridge-sequence">LEARN <b>→</b> EXPERIMENT <b>→</b> BUILD <b>→</b> ITERATE</span>
+        </Reveal>
 
         <section id="about" className="about-section section-shell">
           <Reveal className="section-kicker"><span>04</span><span>ABOUT / CURRENTLY LEARNING</span></Reveal>
